@@ -1,3 +1,7 @@
+## 0.10.5+1
+
+* Notify current playback position when transition in error state.
+
 ## 0.10.5
 
 * Disable Android audio offload by default to prevent playback issues.

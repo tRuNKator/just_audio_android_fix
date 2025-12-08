@@ -945,6 +945,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private void sendError(int errorCode, String errorMsg, Object details, boolean switchToIdle) {
+        updatePosition();
         eventChannel.error(String.valueOf(errorCode), errorMsg, details);
         this.errorCode = errorCode;
         this.errorMessage = errorMsg;
