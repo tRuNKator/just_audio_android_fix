@@ -209,6 +209,14 @@ abstract class AudioPlayerPlatform {
         "audioEffectSetEnabled() has not been implemented.");
   }
 
+  /// On Android, changes the enabled status of an echo audio effect, and does nothing on other
+  /// platforms.
+  Future<AndroidEchoEffectSetEnabledResponse> androidEchoEffectSetEnabled(
+      AndroidEchoEffectSetEnabledRequest request) async {
+    throw UnimplementedError(
+        "androidEchoEffectSetEnabled() has not been implemented.");
+  }
+
   /// Sets the target gain on the Android loudness enhancer.
   Future<AndroidLoudnessEnhancerSetTargetGainResponse>
       androidLoudnessEnhancerSetTargetGain(
@@ -1339,6 +1347,27 @@ class AudioEffectSetEnabledRequest {
 class AudioEffectSetEnabledResponse {
   static AudioEffectSetEnabledResponse fromMap(Map<dynamic, dynamic> map) =>
       AudioEffectSetEnabledResponse();
+}
+
+/// Information communicated to the platform implementation when setting the
+/// enabled status of an echo audio effect.
+class AndroidEchoEffectSetEnabledRequest {
+  final bool enabled;
+
+  AndroidEchoEffectSetEnabledRequest({
+    required this.enabled,
+  });
+
+  Map<dynamic, dynamic> toMap() => <dynamic, dynamic>{
+    'enabled': enabled,
+  };
+}
+
+/// Information returned by the platform implementation after setting the
+/// enabled status of an echo audio effect.
+class AndroidEchoEffectSetEnabledResponse {
+  static AndroidEchoEffectSetEnabledResponse fromMap(Map<dynamic, dynamic> map) =>
+      AndroidEchoEffectSetEnabledResponse();
 }
 
 /// Information communicated to the platform implementation when setting the

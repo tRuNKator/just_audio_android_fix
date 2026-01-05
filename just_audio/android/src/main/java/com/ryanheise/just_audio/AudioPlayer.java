@@ -9,6 +9,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import androidx.media3.common.C;
+import androidx.media3.common.audio.AudioProcessor;
+import androidx.media3.exoplayer.audio.DefaultAudioSink;
+import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -139,6 +142,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             }
         }
     };
+
+    private /*@Nullable*/ MultiTapEchoProcessor echoProcessor;
+    private boolean isEchoEnabled = false;
 
     public AudioPlayer(
         final Context applicationContext,
@@ -469,6 +475,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 setSkipSilenceEnabled((Boolean) call.argument("enabled"));
                 result.success(new HashMap<String, Object>());
                 break;
+            case "androidEchoEffectSetEnabled":
+                setEchoAudioEffectEnabled((Boolean) call.argument("enabled"));
+                result.success(new HashMap<String, Object>());
+                break;
             case "setLoopMode":
                 setLoopMode((Integer) call.argument("loopMode"));
                 result.success(new HashMap<String, Object>());
@@ -497,7 +507,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 break;
             case "concatenatingInsertAll":
                 if (((String)call.argument("id")).length() == 0) {
-                    player.addMediaSources(call.argument("index"), getAudioSources(call.argument("children"))); 
+                    player.addMediaSources(call.argument("index"), getAudioSources(call.argument("children")));
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
                     result.success(new HashMap<String, Object>());
                 } else {
@@ -776,8 +786,30 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     private void ensurePlayerInitialized() {
         if (player == null) {
+            final MultiTapEchoProcessor echoAudioProcessor = new MultiTapEchoProcessor();
+            echoProcessor = echoAudioProcessor;
+            echoAudioProcessor.setEnabled(isEchoEnabled);
+
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
-                Renderer[] defaultRenderers = new DefaultRenderersFactory(context)
+              DefaultRenderersFactory defRenderersFactory = new DefaultRenderersFactory(context) {
+                  @Override
+                  protected AudioSink buildAudioSink(
+                      Context context,
+                      boolean enableFloatOutput,
+                      boolean enableAudioOutputPlaybackParams
+                  ) {
+                        return new DefaultAudioSink.Builder(context)
+                            .setEnableFloatOutput(enableFloatOutput)
+                            //.setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
+                            .setEnableAudioTrackPlaybackParams(enableAudioOutputPlaybackParams)
+                            .setAudioProcessorChain(new DefaultAudioSink.DefaultAudioProcessorChain(
+                                new AudioProcessor[] { echoAudioProcessor }
+                            ))
+                            .build();
+                  }
+              };
+
+                Renderer[] defaultRenderers = defRenderersFactory
                     .createRenderers(eventHandler, videoListener, audioListener, textOutput, metadataOutput);
                 Renderer[] allRenderers = Arrays.copyOf(defaultRenderers, defaultRenderers.length + 1);
                 allRenderers[defaultRenderers.length] = new ObserverRenderer();
@@ -1017,6 +1049,13 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         enqueuePlaybackEvent();
     }
 
+    public void setEchoAudioEffectEnabled(final boolean enabled) {
+      isEchoEnabled = enabled;
+        if (echoProcessor != null) {
+            echoProcessor.setEnabled(enabled);
+        }
+    }
+
     public void setSkipSilenceEnabled(final boolean enabled) {
         player.setSkipSilenceEnabled(enabled);
     }
@@ -1057,6 +1096,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
         mediaSources.clear();
         clearAudioEffects();
+        echoProcessor = null;
         if (player != null) {
             player.release();
             player = null;

@@ -189,6 +189,15 @@ class AudioPlayer {
   /// Counts how many times [_setPlatformActive] is called.
   int _activationCount = 0;
 
+  final _androidEchoAudioEffectEnabledSubject = BehaviorSubject<bool>.seeded(false);
+
+  /// The current enabled status of echo audio effect.
+  bool get androidEchoAudioEffectEnabled => _androidEchoAudioEffectEnabledSubject.nvalue!;
+
+  /// A stream of current status of echo audio effect.
+  Stream<bool> get androidEchoAudioEffectEnabledStream =>
+      _androidEchoAudioEffectEnabledSubject.stream;
+
   /// Creates an [AudioPlayer].
   ///
   /// Apps requesting remote URLs should set the [userAgent] parameter which
@@ -1033,6 +1042,23 @@ class AudioPlayer {
     }
   }
 
+  /// Sets whether echo audio effect should be enabled in audio playback. (Currently
+  /// Android only).
+  Future<void> androidSetEchoEffectEnabled(bool enabled) async {
+    if (_disposed) return;
+    if (!_isAndroid() && !_isUnitTest()) return;
+    final previouslyEnabled = androidEchoAudioEffectEnabled;
+    if (enabled == previouslyEnabled) return;
+    _androidEchoAudioEffectEnabledSubject.add(enabled);
+    try {
+      await (await _platform)
+          .androidEchoEffectSetEnabled(AndroidEchoEffectSetEnabledRequest(enabled: enabled));
+    } catch (e) {
+      _androidEchoAudioEffectEnabledSubject.add(previouslyEnabled);
+      rethrow;
+    }
+  }
+
   /// Clips the current [AudioSource] to the given [start] and [end]
   /// timestamps. If [start] is null, it will be reset to the start of the
   /// original [AudioSource]. If [end] is null, it will be reset to the end of
@@ -1453,6 +1479,7 @@ class AudioPlayer {
       await _errorSubject.close();
       await _playerStateSubject.close();
       await _skipSilenceEnabledSubject.close();
+      await _androidEchoAudioEffectEnabledSubject.close();
       await _positionDiscontinuitySubject.close();
       await _sequenceSubject.close();
       await _shuffleIndicesSubject.close();
@@ -1677,6 +1704,17 @@ class AudioPlayer {
         final automaticallyWaitsToMinimizeStalling =
             this.automaticallyWaitsToMinimizeStalling;
         final playing = this.playing;
+
+        if (_isAndroid() || _isUnitTest()) {
+          try {
+            await platform.androidEchoEffectSetEnabled(
+                AndroidEchoEffectSetEnabledRequest(enabled: androidEchoAudioEffectEnabled));
+          } catch (e) {
+            // EchoAudioEffect not supported on this platform.
+          }
+          if (checkInterruption()) return inactiveResult(platform);
+        }
+
         // To avoid a glitch in ExoPlayer, ensure that any requested audio
         // attributes are set before loading the audio source.
         if (_isAndroid() || _isUnitTest()) {
@@ -4243,6 +4281,12 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
   Future<AudioEffectSetEnabledResponse> audioEffectSetEnabled(
       AudioEffectSetEnabledRequest request) async {
     return AudioEffectSetEnabledResponse();
+  }
+
+  @override
+  Future<AndroidEchoEffectSetEnabledResponse> androidEchoEffectSetEnabled(
+      AndroidEchoEffectSetEnabledRequest request) async {
+    return AndroidEchoEffectSetEnabledResponse();
   }
 
   @override
