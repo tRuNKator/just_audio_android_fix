@@ -8,6 +8,7 @@
 #import "./include/just_audio/LoopingAudioSource.h"
 #import "./include/just_audio/ClippingAudioSource.h"
 #import <AVFoundation/AVFoundation.h>
+#import <Foundation/Foundation.h>
 #import <stdlib.h>
 #include <TargetConditionals.h>
 
@@ -992,8 +993,24 @@
 }
 
 - (void)sendErrorForItem:(IndexedPlayerItem *)playerItem {
-    [self sendError:@((int)playerItem.error.code) errorMessage:playerItem.error.localizedDescription playerItem:playerItem switchToIdle:YES];
-    [_player removeAllItems];
+    NSInteger errorCode = (NSInteger)playerItem.error.code;
+    // Check if this is a network connectivity error (NSURLErrorNotConnectedToInternet = -1009)
+    // For network errors, we should pause instead of stopping/removing items
+    BOOL isNetworkError = (errorCode == NSURLErrorNotConnectedToInternet || 
+                          errorCode == NSURLErrorNetworkConnectionLost);
+    
+    if (isNetworkError && playerItem == _player.currentItem) {
+        // For network errors, pause the player but keep items so it can resume when connection is restored
+        [self sendError:@(errorCode) errorMessage:playerItem.error.localizedDescription playerItem:playerItem switchToIdle:NO];
+        if (_playing) {
+            [_player pause];
+            _playing = NO;
+        }
+    } else {
+        // For other errors, use the original behavior
+        [self sendError:@(errorCode) errorMessage:playerItem.error.localizedDescription playerItem:playerItem switchToIdle:YES];
+        [_player removeAllItems];
+    }
 }
 
 - (void)sendError:(NSNumber *)errorCode errorMessage:(NSString *)errorMessage playerItem:(IndexedPlayerItem *)playerItem switchToIdle:(BOOL)switchToIdle {
